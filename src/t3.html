@@ -8,33 +8,34 @@
 </head>
 <body>
 
-    <canvas id="canvas" width='400' height='400'></canvas>
-    <!-- vertex shader -->
-    <script id="2d-vertex-shader" type="x-shader/x-vertex">
+  <canvas id="c"></canvas>
+  <!-- vertex shader -->
+  <script id="2d-vertex-shader" type="x-shader/x-vertex">
     attribute vec2 a_position;
     attribute vec2 a_texCoord;
     
-    uniform vec2 u_resolution;
-    
+    //uniform vec2 u_resolution;
+    attribute float a_PointSize
     varying vec2 v_texCoord;
     
     void main() {
-       // convert the rectangle from pixels to 0.0 to 1.0
-       vec2 zeroToOne = a_position / u_resolution;
+        // convert the rectangle from pixels to 0.0 to 1.0
+        vec2 zeroToOne = a_position / u_resolution;
     
-       // convert from 0->1 to 0->2
-       vec2 zeroToTwo = zeroToOne * 2.0;
+        // convert from 0->1 to 0->2
+        vec2 zeroToTwo = zeroToOne * 2.0;
     
-       // convert from 0->2 to -1->+1 (clipspace)
-       vec2 clipSpace = zeroToTwo - 1.0;
+        // convert from 0->2 to -1->+1 (clipspace)
+        vec2 clipSpace = zeroToTwo - 1.0;
     
-       gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-    
-       // pass the texCoord to the fragment shader
-       // The GPU will interpolate this value between points.
-       v_texCoord = a_texCoord;
+        gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+        gl_PointSize = a_PointSize;
+        // pass the texCoord to the fragment shader
+        // The GPU will interpolate this value between points.
+        v_texCoord = a_texCoord;
     }
-    </script>
+    </script> 
+
     <!-- fragment shader -->
     <script id="2d-fragment-shader" type="x-shader/x-fragment">
     precision mediump float;
@@ -46,144 +47,172 @@
     varying vec2 v_texCoord;
     
     void main() {
-       gl_FragColor = texture2D(u_image, v_texCoord);
+        //gl_FragColor = texture2D(u_image, v_texCoord);
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
     }
     </script>
-    <script src="https://webglfundamentals.org/webgl/resources/webgl-utils.js"></script>
+
 
   <script>
-   "use strict";
+  
+  // 辅助方法：初始化WebGL程序
+  function initProgram(gl) {
+    let vsource = document.getElementById('2d-vertex-shader').text;
+    let fsource = document.getElementById('2d-fragment-shader').text;
 
-function main() {
-  var image = new Image();
-  // image.src = "share.jpg";  // MUST BE SAME DOMAIN!!!
-  image.src = "../images/tt.gif";  // MUST BE SAME DOMAIN!!!
-  image.onload = function() {
-    render(image);
-  };
-}
-
-function render(image) {
-  // Get A WebGL context
-  /** @type {HTMLCanvasElement} */
-
-  var canvas = document.getElementById("canvas");
-  var gl = canvas.getContext("webgl");
-  if (!gl) {
-    return;
+    let vShader = initShader(gl, gl.VERTEX_SHADER, vsource);
+    let fShader = initShader(gl, gl.FRAGMENT_SHADER, fsource);
+    // 创建WebGL程序
+    let program = gl.createProgram();
+    gl.attachShader(program, vShader);
+    gl.attachShader(program, fShader);
+    gl.linkProgram(program);
+    // 判断是否创建成功
+    if(!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        alert('unable to initialize!');
+        return;
+    }
+      // Clear the canvas
+    gl.clearColor(0.0,0.0,0.0,1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+    console.log('程序创建完成')
+    return program;
+  }
+  // 辅助方法：初始化着色器
+  function initShader(gl, type, source) {
+      let shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          alert('error occured compiling the shaders:' + gl.getShaderInfoLog(shader));
+          return null;
+      }
+      return shader;
   }
 
-  // setup GLSL program
-  var program = webglUtils.createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
-  // look up where the vertex data needs to go.
-  var positionLocation = gl.getAttribLocation(program, "a_position");
-  var texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
+//设置顶点对象
+function initVertexBuffers(gl,program){
+  console.log('texture')
+  // 每一行前两个数据为顶点坐标，后两个数据为纹理坐标
+  let pointData = new Float32Array([
+      -0.5, 0.5, 0.0, 1.0,
+      -0.5, -0.5, 0.0, 0.0,
+      0.5, 0.5, 1.0, 1.0,
+      0.5, -0.5, 1.0, 0.0
+  ]);
+  var n = 4; // 顶点的数量
+  var vertexTexCoordBuffer = gl.createBuffer();
+  if (!vertexTexCoordBuffer) {
+    console.log('Failed to create the buffer object');
+    return -1;
+  }
+  
+  // 设置顶点坐标
+  var a_Position = gl.getAttribLocation(program, "a_position");
+  gl.bindBuffer(gl.ARRAY_BUFFER,vertexTexCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,pointData,gl.STATIC_DRAW);
+  var FSIZE = pointData.BYTES_PER_ELEMENT;
+  console.log(FSIZE*4)
+  gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE*4,0);
+  // 激活顶点和缓冲区到连接
+  gl.enableVertexAttribArray(a_Position);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, n);
+  console.log('end')
+  //设置纹理坐标
+  // var a_TexCoord = gl.getAttribLocation(program, 'a_texCoord');
+  // if (a_TexCoord < 0) {
+  //   console.log('Failed to get the storage location of a_TexCoord');
+  //   return -1;
+  // }
+  // gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, FSIZE * 4, FSIZE * 2);
+  // gl.enableVertexAttribArray(a_TexCoord); 
+  return n
+}
+function loadTexture(gl, n, texture, u_Sampler, image) {
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // 对纹理图像进行Y轴反转，是因为webGL的坐标跟图像的y轴正好是相反的，所以需要y轴反转，或者在着色器中进行纹理的t轴反转
 
-  // Create a buffer to put three 2d clip space points in
-  var positionBuffer = gl.createBuffer();
+  // 开启0号纹理单元
+  gl.activeTexture(gl.TEXTURE0);
 
-  // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = positionBuffer)
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  // Set a rectangle the same size as the image.
-  setRectangle(gl, 0, 0, image.width, image.height);
-
-  // provide texture coordinates for the rectangle.
-  var texcoordBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-      0.0,  0.0,
-      1.0,  0.0,
-      0.0,  1.0,
-      0.0,  1.0,
-      1.0,  0.0,
-      1.0,  1.0,
-  ]), gl.STATIC_DRAW);
-
-  // Create a texture.
-  var texture = gl.createTexture();
+  // 向target绑定纹理对象
   gl.bindTexture(gl.TEXTURE_2D, texture);
 
-  // Set the parameters so we can render any size image.
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  // 配置纹理参数
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // 配置纹理图像
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+  
+  // 将0号纹理传递给着色器
+  gl.uniform1i(u_Sampler, 0);
+  
+  gl.clear(gl.COLOR_BUFFER_BIT);   // Clear <canvas>
 
-  // Upload the image into the texture.
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-
-  // lookup uniforms
-  var resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-
-  webglUtils.resizeCanvasToDisplaySize(gl.canvas);
-
-  // Tell WebGL how to convert from clip space to pixels
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-  // Clear the canvas
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-
-  // Tell it to use our program (pair of shaders)
-  gl.useProgram(program);
-
-  // Turn on the position attribute
-  gl.enableVertexAttribArray(positionLocation);
-
-  // Bind the position buffer.
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-  // Tell the position attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-  var size = 2;          // 2 components per iteration
-  var type = gl.FLOAT;   // the data is 32bit floats
-  var normalize = false; // don't normalize the data
-  var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
-  var offset = 0;        // start at the beginning of the buffer
-  gl.vertexAttribPointer(
-      positionLocation, size, type, normalize, stride, offset);
-
-  // Turn on the teccord attribute
-  gl.enableVertexAttribArray(texcoordLocation);
-
-  // Bind the position buffer.
-  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-
-  // Tell the position attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-  var size = 2;          // 2 components per iteration
-  var type = gl.FLOAT;   // the data is 32bit floats
-  var normalize = false; // don't normalize the data
-  var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
-  var offset = 0;        // start at the beginning of the buffer
-  gl.vertexAttribPointer(
-      texcoordLocation, size, type, normalize, stride, offset);
-
-  // set the resolution
-  gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
-
-  // Draw the rectangle.
-  var primitiveType = gl.TRIANGLES;
-  var offset = 0;
-  var count = 6;
-  gl.drawArrays(primitiveType, offset, count);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, n); // D绘制矩形
 }
 
-function setRectangle(gl, x, y, width, height) {
-  var x1 = x;
-  var x2 = x + width;
-  var y1 = y;
-  var y2 = y + height;
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-     x1, y1,
-     x2, y1,
-     x1, y2,
-     x1, y2,
-     x2, y1,
-     x2, y2,
-  ]), gl.STATIC_DRAW);
+function initTextures(gl,program,url){
+  let n = initVertexBuffers(gl,program);
+  var texture = gl.createTexture();   // 创建纹理对象
+  if (!texture) {
+    console.log('Failed to create the texture object');
+    return false;
+  }
+  var u_resolution = gl.getUniformLocation(program, 'u_resolution');
+  if (!u_resolution) {
+    console.log('Failed to get the storage location of u_resolution');
+    return false;
+  }
+  var image = new Image();  // 创建一个image对象
+  if (!image) {
+    console.log('Failed to create the image object');
+    return false;
+  }
+  image.onload = function(){ loadTexture(gl, n, texture, u_resolution, image); };
+  // 把路径添加到src让浏览器加载
+  image.src = url;
+  return true;
 }
 
-main();
 
+function initPoint(gl, a_Position, a_PointSize) {
+    // 将点的坐标和尺寸信息放入一个类型化数组中
+    let pointData = new Float32Array([
+        -0.5, -0.5, 10.0,
+        0, 0.5, 20.0,
+        0.5, -0.5, 30.0
+    ]);
+    // 利用类型化数组提供的内部属性，获取到元素的尺寸
+    let FSIZE = pointData.BYTES_PER_ELEMENT;
+    let buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, pointData, gl.STATIC_DRAW);
+    // 设置第五个参数stride为3*FSIZE（每两个点之间有三个元素，也就是每三个数据进行一次拆分）
+    gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 3*FSIZE, 0);
+    gl.enableVertexAttribArray(a_Position);
+    // 设置第六个参数offset偏移，将每组数据的第三个元素设置给a_PointSize属性
+    gl.vertexAttribPointer(a_PointSize, 1, gl.FLOAT, false, 3*FSIZE, 2*FSIZE);
+    gl.enableVertexAttribArray(a_PointSize);
+}
+
+let canvas = document.querySelector("#c");
+let gl = canvas.getContext("webgl");
+let program = initProgram(gl);
+// initVertexBuffers(gl,program)
+// initTextures(gl,program,'share.jpg')
+
+let a_Position = gl.getAttribLocation(program, 'a_position');
+  if (a_Position < 0) {
+      console.log('Cant find the position');
+      return;
+  }
+  let a_PointSize = gl.getAttribLocation(program, 'a_PointSize');
+  if (a_PointSize < 0) {
+      console.log('Cant find the pointsize');
+      return;
+  }
+  gl.vertexAttrib1f(a_PointSize, 10.0);
+  initPoint(gl, a_Position, a_PointSize);
   </script>
  
 

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="target-densitydpi=device-dpi,width=640, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>webGL二维矩阵</title>
+</head>
+<body>
+	<div id="uiContainer">
+			<div id="ui">
+				<div id="x"><input class="x" type="range" min="0" max="640"></div>
+				<div id="y"><input class="y" type="range" min="0" max="1000"></div>
+				<div id="angle"><input class="angle" type="range" min="0" max="360"></div>
+				<div id="scaleX"><input class="scaleX" type="range" min="0" max="100"></div>
+				<div id="scaleY"><input class="scaleY" type="range" min="0" max="100"></div>
+			</div>
+		</div>
+  <canvas id="c" width='640px' height="1236px"></canvas>
+
+
+<script src="basic.js"></script>
+  <script>
+		var canvas = document.querySelector("#c");
+  	var gl = canvas.getContext("webgl");
+		const VSHADER_SOURCE = `
+        attribute vec2 a_position;
+        uniform mat3 u_matrix;
+        void main() {
+					gl_Position = vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
+        }`;
+		const FSHADER_SOURCE =`
+		precision mediump float;
+		uniform vec4 u_color;
+		void main() {
+			gl_FragColor = u_color;
+		}`;
+	var translation = [200, 450];
+  var angleInRadians = 10;
+	var scale = [1, 1];	
+	var program
+//设置缓冲区
+function setBuffer(program){
+	let aPosition = gl.getAttribLocation(program, 'a_position');
+	let colorLocation = gl.getUniformLocation(program, "u_color");
+	let matrixLocation = gl.getUniformLocation(program, "u_matrix");
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER,vf,gl.STATIC_DRAW);
+	
+  let color = [Math.random(), Math.random(), Math.random(), 1];
+  gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false,0, 0);
+	gl.enableVertexAttribArray(aPosition);
+	let matrix = m3.projection(gl.canvas.clientWidth, gl.canvas.clientHeight);
+	matrix = m3.translate(matrix, translation[0], translation[1]);
+	matrix = m3.rotate(matrix, angleInRadians);
+	matrix = m3.scale(matrix, scale[0], scale[1]);
+	gl.uniformMatrix3fv(matrixLocation, false, matrix);
+	gl.uniform4fv(colorLocation, color);
+	var primitiveType = gl.TRIANGLES;
+	var offset = 0;
+	var count = 18;  // 6 triangles in the 'F', 3 points per triangle
+	gl.drawArrays(primitiveType, offset, count);
+}
+
+function main(){
+	
+	 program = initProgram(gl);
+  // gl.vertexAttrib3f(aPosition, 0, 0, 0.0);
+  gl.clearColor(1.0,1.0,1.0,0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+	setBuffer(program);
+	btnInit()
+}
+
+function btnInit(fun){
+	let gx = document.querySelector('.x');
+	gx.addEventListener('change',(e)=>{
+		console.log(gx.value)
+		translation[0] = gx.value
+		setBuffer(program)
+	})
+	let gy = document.querySelector('.y');
+	gy.addEventListener('change',(e)=>{
+		translation[1] = gy.value
+		setBuffer(program)
+	})
+	let gangle = document.querySelector('.angle');
+	gangle.addEventListener('change',(e)=>{
+		angleInRadians = gangle.value
+		setBuffer(program)
+	})
+	let gscaleX = document.querySelector('.scaleX');
+	gscaleX.addEventListener('change',(e)=>{
+		scale[0] = gscaleX.value/10
+		setBuffer(program)
+	})
+	let gscaleY = document.querySelector('.scaleY');
+	gscaleY.addEventListener('change',(e)=>{
+		scale[1] = gscaleY.value/10
+		setBuffer(program)
+	})
+}
+  
+main()
+ 
+  </script>
+ 
+<style>
+body{
+	background: rgba(25, 207, 207, 0.473);
+}
+#uiContainer{
+	position: absolute;
+	bottom:30px;
+	right:30px;
+}
+</style>
+</body>
+</html>
